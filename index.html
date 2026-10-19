@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>심플 타이머</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .timer-card {
+      background-color: #1e293b;
+      border-radius: 24px;
+      padding: 40px 32px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #94a3b8;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* 원형 프로그레스 및 시간 표시 */
+    .timer-display-wrapper {
+      position: relative;
+      width: 240px;
+      height: 240px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .progress-ring {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform: rotate(-90deg);
+    }
+
+    .progress-ring__circle {
+      transition: stroke-dashoffset 0.35s ease;
+      stroke-dasharray: 691; /* 2 * PI * r (r=110) */
+      stroke-dashoffset: 0;
+      stroke-linecap: round;
+    }
+
+    .time-text {
+      font-size: 3rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #ffffff;
+      z-index: 1;
+    }
+
+    /* 빠른 시간 추가 버튼 */
+    .presets {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .preset-btn {
+      background-color: #334155;
+      color: #cbd5e1;
+      border: none;
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .preset-btn:hover {
+      background-color: #475569;
+      color: #ffffff;
+    }
+
+    .preset-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* 하단 조작 컨트롤 버튼 */
+    .controls {
+      display: flex;
+      gap: 16px;
+      width: 100%;
+    }
+
+    .btn {
+      flex: 1;
+      height: 52px;
+      border: none;
+      border-radius: 14px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-primary {
+      background: #3b82f6;
+      color: #ffffff;
+      box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+
+    .btn-primary.pause {
+      background: #f59e0b;
+      box-shadow: 0 4px 14px 0 rgba(245, 158, 11, 0.35);
+    }
+
+    .btn-primary.pause:hover {
+      background: #d97706;
+    }
+
+    .btn-secondary {
+      background-color: #334155;
+      color: #cbd5e1;
+    }
+
+    .btn-secondary:hover {
+      background-color: #475569;
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="timer-card">
+    <div class="title">Timer</div>
+
+    <!-- 원형 진행률 & 시간 -->
+    <div class="timer-display-wrapper">
+      <svg class="progress-ring" width="240" height="240">
+        <circle
+          stroke="#334155"
+          stroke-width="8"
+          fill="transparent"
+          r="110"
+          cx="120"
+          cy="120"
+        />
+        <circle
+          id="progress-circle"
+          class="progress-ring__circle"
+          stroke="#3b82f6"
+          stroke-width="8"
+          fill="transparent"
+          r="110"
+          cx="120"
+          cy="120"
+        />
+      </svg>
+      <div id="time-display" class="time-text">00:00</div>
+    </div>
+
+    <!-- 시간 추가 버튼 -->
+    <div class="presets">
+      <button class="preset-btn" onclick="addSeconds(30)">+30초</button>
+      <button class="preset-btn" onclick="addSeconds(60)">+1분</button>
+      <button class="preset-btn" onclick="addSeconds(300)">+5분</button>
+      <button class="preset-btn" onclick="addSeconds(600)">+10분</button>
+    </div>
+
+    <!-- 시작/정지/리셋 버튼 -->
+    <div class="controls">
+      <button id="reset-btn" class="btn btn-secondary">초기화</button>
+      <button id="toggle-btn" class="btn btn-primary">시작</button>
+    </div>
+  </div>
+
+  <script>
+    // 원형 프로그레스 바 설정 (둘레 계산: 2 * PI * 110 ≈ 691.15)
+    const CIRCLE_RADIUS = 110;
+    const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
+
+    const circle = document.getElementById('progress-circle');
+    const display = document.getElementById('time-display');
+    const toggleBtn = document.getElementById('toggle-btn');
+    const resetBtn = document.getElementById('reset-btn');
+
+    circle.style.strokeDasharray = `${CIRCUMFERENCE} ${CIRCUMFERENCE}`;
+    circle.style.strokeDashoffset = 0;
+
+    let initialTime = 0;   // 기준 전체 시간(초)
+    let remainingTime = 0; // 남은 시간(초)
+    let timerId = null;
+    let isRunning = false;
+
+    // 비프음 재생 (외부 음원 없이 브라우저 내장 Web Audio API 사용)
+    function playAlarm() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const playTone = (freq, start, duration) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.1, audioCtx.currentTime + start);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + start + duration);
+          osc.start(audioCtx.currentTime + start);
+          osc.stop(audioCtx.currentTime + start + duration);
+        };
+
+        // 3연속 비프음 발생
+        playTone(880, 0, 0.2);
+        playTone(880, 0.3, 0.2);
+        playTone(1174.66, 0.6, 0.4);
+      } catch (e) {
+        console.error('Audio playback error:', e);
+      }
+    }
+
+    // 시간 텍스트 및 프로그레스 업데이트
+    function updateDisplay() {
+      const minutes = Math.floor(remainingTime / 60);
+      const seconds = remainingTime % 60;
+      display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+      // 게이지 업데이트
+      if (initialTime > 0) {
+        const progress = remainingTime / initialTime;
+        const offset = CIRCUMFERENCE - (progress * CIRCUMFERENCE);
+        circle.style.strokeDashoffset = offset;
+      } else {
+        circle.style.strokeDashoffset = 0;
+      }
+    }
+
+    // 시간 추가 (+30초, +1분 등)
+    function addSeconds(sec) {
+      if (isRunning) pauseTimer();
+      remainingTime += sec;
+      initialTime += sec;
+      updateDisplay();
+    }
+
+    // 1초마다 실행되는 틱
+    function tick() {
+      if (remainingTime > 0) {
+        remainingTime--;
+        updateDisplay();
+      }
+
+      if (remainingTime <= 0) {
+        pauseTimer();
+        playAlarm();
+        alert('⏰ 설정한 시간이 완료되었습니다!');
+      }
+    }
+
+    // 시작
+    function startTimer() {
+      if (remainingTime <= 0) return;
+
+      isRunning = true;
+      toggleBtn.textContent = '일시정지';
+      toggleBtn.classList.add('pause');
+
+      timerId = setInterval(tick, 1000);
+    }
+
+    // 일시정지
+    function pauseTimer() {
+      isRunning = false;
+      toggleBtn.textContent = '시작';
+      toggleBtn.classList.remove('pause');
+      clearInterval(timerId);
+      timerId = null;
+    }
+
+    // 리셋
+    function resetTimer() {
+      pauseTimer();
+      initialTime = 0;
+      remainingTime = 0;
+      updateDisplay();
+    }
+
+    // 이벤트 리스너 등록
+    toggleBtn.addEventListener('click', () => {
+      if (isRunning) {
+        pauseTimer();
+      } else {
+        startTimer();
+      }
+    });
+
+    resetBtn.addEventListener('click', resetTimer);
+
+    // 초기 표시
+    updateDisplay();
+  </script>
+</body>
+</html>
